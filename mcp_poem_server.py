@@ -120,7 +120,7 @@ async def generate_poem(
     record_call(theme, style, length, tone)
     return fallback_poem(theme, style, length, tone)
 
-app = mcp.from_fastapi()
+app = mcp.as_fastapi()
 
 if __name__ == "__main__":
     import uvicorn
