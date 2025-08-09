@@ -2,23 +2,14 @@ import os
 import time
 import uuid
 import sqlite3
+import random
 from typing import Annotated
 from pydantic import Field
 from fastmcp import FastMCP, Context
-from fastapi import FastAPI
 
 # Environment variables
 AUTH_TOKEN = os.getenv("AUTH_TOKEN", "dev-token")
 MY_NUMBER = os.getenv("MY_NUMBER", None)
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", None)
-
-# Optional OpenAI import
-try:
-    import openai
-    if OPENAI_API_KEY:
-        openai.api_key = OPENAI_API_KEY
-except ImportError:
-    openai = None
 
 # SQLite database for usage tracking
 DB_PATH = "usage.db"
@@ -42,12 +33,76 @@ def record_call(theme, style, length, tone):
     )
     _conn.commit()
 
-# Create MCP instance
+WORD_BANKS = {
+    "romantic": ["love", "heart", "kiss", "dream", "embrace", "rose", "desire", "whisper"],
+    "funny": ["cheese", "joke", "clown", "banana", "giggle", "pickle", "snort", "silly"],
+    "dark": ["shadow", "night", "ghost", "fear", "whisper", "void", "bleed", "grave"],
+    "neutral": ["sky", "tree", "wind", "river", "stone", "cloud", "path", "light"]
+}
+
+TEMPLATES = {
+    "haiku": [
+        "{theme} at dawn breaks,",
+        "soft {tone_word} drifts through the air,",
+        "peaceful silence hums."
+    ],
+    "sonnet": [
+        "Oh {theme}, in {tone_word} hues you shine,",
+        "A melody that stirs this heart of mine.",
+        "Through {tone_word} days and quiet nights,",
+        "Your presence paints the soul with lights.",
+        "With every breath, a gentle song,",
+        "Where {tone_word} feelings do belong.",
+        "In verses penned by whispered dreams,",
+        "You’re more than ever what life means.",
+        "Though {theme} fades, your spirit stays,",
+        "In {tone_word} hearts and tender ways.",
+        "Forevermore, in silent streams,",
+        "You dance within my nightly themes.",
+        "O {theme}, beloved and true,",
+        "This sonnet’s all I give to you."
+    ],
+    "free_verse": [
+        "In the {tone_word} light of {theme}, I stand,",
+        "Whispers and dreams held in my hand.",
+        "The {theme} sings a story untold,",
+        "Woven in stardust, silver and gold.",
+        "Echoes of {tone_word} memories flow,",
+        "Paths where only the brave dare to go.",
+        "Beneath the {tone_word} sky so wide,",
+        "Feelings and moments collide."
+    ]
+}
+
+def fallback_poem(theme, style, length, tone):
+    theme = theme.capitalize()
+    tone = tone.lower()
+    style = style.lower()
+    length = length.lower()
+
+    tone_word = random.choice(WORD_BANKS.get(tone, WORD_BANKS["neutral"]))
+    lines = TEMPLATES.get(style, TEMPLATES["free_verse"])
+    poem_lines = [line.format(theme=theme, tone_word=tone_word) for line in lines]
+
+    if length == "short":
+        poem_lines = poem_lines[:3]
+    elif length == "medium":
+        poem_lines = poem_lines[:6]
+    else:
+        poem_lines = poem_lines
+
+    if length != "long":
+        first_line = poem_lines[0]
+        rest = poem_lines[1:]
+        random.shuffle(rest)
+        poem_lines = [first_line] + rest
+
+    return "\n".join(poem_lines)
+
 mcp = FastMCP(name="PoemGen")
 
 @mcp.tool()
 def validate(token: str) -> str:
-    """Required by Puch for authentication"""
     if token != AUTH_TOKEN:
         raise Exception("Invalid token")
     if not MY_NUMBER:
@@ -63,37 +118,9 @@ async def generate_poem(
     ctx: Context = None
 ) -> str:
     record_call(theme, style, length, tone)
-
-    if OPENAI_API_KEY and openai:
-        try:
-            prompt = f"Write a {length} {style} poem about '{theme}' in a {tone} tone."
-            resp = openai.ChatCompletion.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=400,
-                temperature=0.8
-            )
-            return resp["choices"][0]["message"]["content"].strip()
-        except Exception:
-            pass
-
     return fallback_poem(theme, style, length, tone)
 
-def fallback_poem(theme, style, length, tone):
-    if style == "haiku":
-        return f"{theme} at sunrise\nsoft winds drift across the sky\nhope wakes quietly"
-    lines = [
-        f"In the {tone} light of {theme}, I stand,",
-        f"Whispers and dreams held in my hand.",
-        f"The {theme} sings a story untold,",
-        "Woven in stardust, silver and gold."
-    ]
-    if tone == "funny":
-        lines[-1] += " (and maybe some cheese)."
-    return "\n".join(lines[:3] if length == "short" else lines)
-
-# FastAPI app from MCP
-app = mcp.as_fastapi()
+app = mcp.from_fastapi()
 
 if __name__ == "__main__":
     import uvicorn

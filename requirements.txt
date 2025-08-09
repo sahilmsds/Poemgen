@@ -1,5 +1,4 @@
 fastmcp==2.11.2
-openai
 pydantic
 uvicorn
 fastapi
