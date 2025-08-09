@@ -1,4 +1,4 @@
-fastmcp==2.11.2
+fastmcp==1.2.0
 pydantic
 uvicorn
 fastapi
