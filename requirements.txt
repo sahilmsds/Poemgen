@@ -1,5 +1,6 @@
+fastmcp
+pydantic
 fastapi
 uvicorn
-pydantic
-mcp
 openai
+
