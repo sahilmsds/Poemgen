@@ -1,16 +1,18 @@
 import os
-import time, uuid, sqlite3
+import time
+import uuid
+import sqlite3
 from typing import Annotated
 from pydantic import Field
-from mcp.server.fastmcp import FastMCP, Context
+from fastmcp import FastMCP, Context
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
 
-# Read environment variables
+# Environment variables
 AUTH_TOKEN = os.getenv("AUTH_TOKEN", "dev-token")
 MY_NUMBER = os.getenv("MY_NUMBER", None)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", None)
 
+# Optional OpenAI import
 try:
     import openai
     if OPENAI_API_KEY:
@@ -18,7 +20,7 @@ try:
 except ImportError:
     openai = None
 
-# Database for tracking usage
+# SQLite database for usage tracking
 DB_PATH = "usage.db"
 _conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 _conn.execute("""
@@ -34,11 +36,13 @@ CREATE TABLE IF NOT EXISTS calls (
 _conn.commit()
 
 def record_call(theme, style, length, tone):
-    _conn.execute("INSERT INTO calls VALUES (?,?,?,?,?,?)",
-                  (str(uuid.uuid4()), time.time(), theme, style, length, tone))
+    _conn.execute(
+        "INSERT INTO calls VALUES (?,?,?,?,?,?)",
+        (str(uuid.uuid4()), time.time(), theme, style, length, tone)
+    )
     _conn.commit()
 
-# MCP server
+# Create MCP instance
 mcp = FastMCP(name="PoemGen")
 
 @mcp.tool()
@@ -62,10 +66,7 @@ async def generate_poem(
 
     if OPENAI_API_KEY and openai:
         try:
-            prompt = (
-                f"Write a {length} {style} poem about '{theme}' "
-                f"in a {tone} tone."
-            )
+            prompt = f"Write a {length} {style} poem about '{theme}' in a {tone} tone."
             resp = openai.ChatCompletion.create(
                 model="gpt-4o-mini",
                 messages=[{"role": "user", "content": prompt}],
@@ -91,18 +92,9 @@ def fallback_poem(theme, style, length, tone):
         lines[-1] += " (and maybe some cheese)."
     return "\n".join(lines[:3] if length == "short" else lines)
 
-# Create FastAPI app
-app = FastAPI()
-
-@app.get("/", response_class=HTMLResponse)
-def root():
-    return "<h1>✅ PoemGen Server is Running</h1><p>Use this URL inside Puch AI MCP.</p>"
-
-# Mount MCP into FastAPI
-mcp.fastapi_mount(app)
+# FastAPI app from MCP
+app = mcp.as_fastapi()
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 8080))
     import uvicorn
-    print(f"Starting PoemGen on port {port}...")
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
