@@ -92,5 +92,6 @@ def fallback_poem(theme, style, length, tone):
     return "\n".join(lines[:3] if length == "short" else lines)
 
 if __name__ == "__main__":
-    print("Starting PoemGen MCP server...")
-    mcp.run()
+    port = int(os.getenv("PORT", 8080))
+    print(f"Starting PoemGen MCP server on port {port}...")
+    mcp.run(host="0.0.0.0", port=port)
