@@ -60,7 +60,6 @@ async def generate_poem(
 ) -> str:
     record_call(theme, style, length, tone)
 
-    # If OpenAI API key present
     if OPENAI_API_KEY and openai:
         try:
             prompt = (
@@ -77,7 +76,6 @@ async def generate_poem(
         except Exception:
             pass
 
-    # Fallback simple poem
     return fallback_poem(theme, style, length, tone)
 
 def fallback_poem(theme, style, length, tone):
@@ -93,20 +91,18 @@ def fallback_poem(theme, style, length, tone):
         lines[-1] += " (and maybe some cheese)."
     return "\n".join(lines[:3] if length == "short" else lines)
 
-
-
+# Create FastAPI app
 app = FastAPI()
 
 @app.get("/", response_class=HTMLResponse)
-def read_root():
-    return "<h1>PoemGen Server is running ✅</h1><p>Use this endpoint via MCP or API requests.</p>"
+def root():
+    return "<h1>✅ PoemGen Server is Running</h1><p>Use this URL inside Puch AI MCP.</p>"
 
-# Mount the MCP server inside FastAPI
+# Mount MCP into FastAPI
 mcp.fastapi_mount(app)
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))
     import uvicorn
-    print(f"Starting PoemGen MCP server on port {port}...")
+    print(f"Starting PoemGen on port {port}...")
     uvicorn.run(app, host="0.0.0.0", port=port)
-
